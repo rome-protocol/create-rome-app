@@ -1,0 +1,6 @@
+node_modules
+template/node_modules
+template/dist
+template/.env
+template/src/config.generated.json
+*.local

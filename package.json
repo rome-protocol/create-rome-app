@@ -1,0 +1,27 @@
+{
+  "name": "create-rome-app",
+  "version": "0.1.0",
+  "description": "Scaffold a dual-lane Rome app — one Solidity contract driven by both a MetaMask (EVM) wallet and a Phantom (Solana) wallet, on @rome-protocol/sdk.",
+  "type": "module",
+  "bin": {
+    "create-rome-app": "bin/create-rome-app.mjs"
+  },
+  "files": [
+    "bin",
+    "template"
+  ],
+  "keywords": [
+    "rome",
+    "solana",
+    "evm",
+    "dual-lane",
+    "scaffold",
+    "create-app"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rome-protocol/create-rome-app.git"
+  },
+  "homepage": "https://docs.rome.builders"
+}
