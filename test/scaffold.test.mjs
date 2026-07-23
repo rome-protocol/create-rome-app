@@ -43,6 +43,16 @@ test("scaffolds when installed under a node_modules path (the npx layout)", () =
     assert.equal(pkg.name, "my-app");
     // install artifacts must still be excluded
     assert.ok(!existsSync(join(app, "node_modules")), "template node_modules must not copy");
+    // npm pack STRIPS dotted .gitignore from git installs, so the template ships a
+    // dotless `gitignore` and the bin renames it on copy. Without this, a scaffolded
+    // app (whose .env holds PRIVATE KEYS) has no ignore file — `git init && push`
+    // would stage the keys.
+    const gi = join(app, ".gitignore");
+    assert.ok(existsSync(gi), ".gitignore must exist in the scaffolded app");
+    const giText = readFileSync(gi, "utf8");
+    assert.match(giText, /^\.env$/m, ".gitignore must ignore .env (it holds keys)");
+    assert.match(giText, /^node_modules$/m, ".gitignore must ignore node_modules");
+    assert.ok(!existsSync(join(app, "gitignore")), "no stray dotless gitignore may remain");
   } finally {
     rmSync(base, { recursive: true, force: true });
   }

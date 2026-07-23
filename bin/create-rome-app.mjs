@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Scaffold a dual-lane Rome app: copy template/ → <app-name>/, set the package
 // name, seed .env from .env.example, print next steps.
-import { cpSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
@@ -25,6 +25,12 @@ if (existsSync(target)) {
 // and matching on it would skip the entire template.
 const skip = new RegExp(`(^|[\\\\/])(node_modules|dist|\\.env|config\\.generated\\.json)($|[\\\\/])`);
 cpSync(templateDir, target, { recursive: true, filter: (src) => !skip.test(relative(templateDir, src)) });
+
+// npm pack strips dotted .gitignore from git installs, so the template ships a
+// dotless `gitignore`; make it real here. Without it, a scaffolded app has no
+// ignore file and its .env (which holds private keys) is one `git init` from leaking.
+const dotless = join(target, "gitignore");
+if (existsSync(dotless)) renameSync(dotless, join(target, ".gitignore"));
 
 const pkgPath = join(target, "package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
