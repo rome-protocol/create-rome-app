@@ -10,7 +10,7 @@ import { eip1193FromAccount } from "../lib/eip1193Node.js";
 import { deployVault } from "./deploy.js";
 import * as rome from "../lib/rome.js";
 
-const cfg = loadConfig({ proxyUrl: process.env.PROXY_URL, solanaRpc: process.env.SOLANA_RPC });
+const cfg = loadConfig({ chainId: process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : undefined, proxyUrl: process.env.PROXY_URL, solanaRpc: process.env.SOLANA_RPC });
 const evm = privateKeyToAccount(process.env.EVM_KEY as `0x${string}`);
 const sol = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.SOLANA_KEY!)));
 const solSign = async (tx: any) => { tx.partialSign(sol); return tx; };

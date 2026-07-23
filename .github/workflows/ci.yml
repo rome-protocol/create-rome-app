@@ -18,3 +18,20 @@ jobs:
           node-version: ${{ matrix.node }}
       # The scaffolder is zero-dependency — the suite runs on bare node.
       - run: npm test
+
+  # The template must honor its documented .env contract: CHAIN_ID selects the
+  # chain (regression: it used to be silently ignored — everything hit the default).
+  template-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: template
+      - name: CHAIN_ID env must select the chain
+        run: CHAIN_ID=121214 npm run gen-config | grep -q "chain 121214"
+        working-directory: template
+      - run: npm run typecheck
+        working-directory: template
