@@ -38,7 +38,7 @@ export async function deployVault(cfg: RomeConfig, account: Account): Promise<`0
 
 // `npm run deploy`
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const cfg = loadConfig({ proxyUrl: process.env.PROXY_URL, solanaRpc: process.env.SOLANA_RPC });
+  const cfg = loadConfig({ chainId: process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : undefined, proxyUrl: process.env.PROXY_URL, solanaRpc: process.env.SOLANA_RPC });
   const account = privateKeyToAccount(process.env.EVM_KEY as `0x${string}`);
   const vault = await deployVault(cfg, account);
   console.log("Vault deployed:", vault);
