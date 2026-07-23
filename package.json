@@ -23,5 +23,8 @@
     "type": "git",
     "url": "git+https://github.com/rome-protocol/create-rome-app.git"
   },
-  "homepage": "https://docs.rome.builders"
+  "homepage": "https://docs.rome.builders",
+  "scripts": {
+    "test": "node --test test/"
+  }
 }
