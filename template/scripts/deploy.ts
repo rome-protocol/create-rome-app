@@ -2,8 +2,8 @@ import "dotenv/config";
 import { readFileSync } from "node:fs";
 import solc from "solc";
 import { createWalletClient, createPublicClient, http, type Account } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import { loadConfig, type RomeConfig } from "../lib/config.js";
+import { requireEvmKey } from "../lib/keys.js";
 
 /** Compile contracts/Vault.sol with solc. */
 export function compileVault() {
@@ -39,7 +39,7 @@ export async function deployVault(cfg: RomeConfig, account: Account): Promise<`0
 // `npm run deploy`
 if (import.meta.url === `file://${process.argv[1]}`) {
   const cfg = loadConfig({ chainId: process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : undefined, proxyUrl: process.env.PROXY_URL, solanaRpc: process.env.SOLANA_RPC });
-  const account = privateKeyToAccount(process.env.EVM_KEY as `0x${string}`);
+  const account = requireEvmKey();
   const vault = await deployVault(cfg, account);
   console.log("Vault deployed:", vault);
   console.log(`→ set VAULT_ADDRESS=${vault} in .env`);
