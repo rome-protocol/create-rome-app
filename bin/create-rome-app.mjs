@@ -46,9 +46,10 @@ console.log(`
 Next:
   cd ${name}
   npm install
-  # fill in .env: EVM_KEY (USDC gas on Rome) + SOLANA_KEY (SOL + USDC), then fund both wallets
+  # fill in .env: ROME_EVM_KEY (≥ 1 USDC gas on Rome) + ROME_SOLANA_KEY (≥ 0.6 USDC + 0.02 SOL)
   npm run demo      # headless — a MetaMask lane AND a Phantom lane hit ONE Vault
   npm run deploy    # deploy a Vault → set VAULT_ADDRESS in .env
+  npm run verify    # the works-gate (the rome CLI's \`verify\`) — both lanes answer
   npm run dev       # the web app — connect both wallets
 
 Docs: https://docs.rome.builders
