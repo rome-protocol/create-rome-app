@@ -67,15 +67,20 @@ export async function wrapperGrantCall(cfg: RomeConfig, who: Hex): Promise<{ to:
 
 // ------------------------------ EVM lane (MetaMask) ------------------------------
 // A MetaMask user has native gas (USDC). `evmWrapToWusdc` turns some into the
-// wUSDC wrapper (18-dec `weiAmount` in, 6-dec wUSDC out); then it's a normal
-// ERC-20 grant (once) → approve → deposit → withdraw, each via `submitRomeTx`.
+// wUSDC wrapper (18-dec `weiAmount` in, 6-dec wUSDC out); then a one-time wrapper
+// grant, then a normal ERC-20 approve → deposit → withdraw, each via `submitRomeTx`.
 export function evmWrapToWusdc(provider: Eip1193, from: Hex, weiAmount: bigint) {
   return submitRomeTx(provider, { from, to: WITHDRAW, data: encodeFunctionData({ abi: WITHDRAW_ABI, functionName: "withdraw_to_ata", args: [weiAmount] }) });
 }
 /** One-time wrapper grant for a MetaMask user. Returns undefined when it was already in place. */
 export async function evmGrant(provider: Eip1193, from: Hex, cfg: RomeConfig) {
   const call = await wrapperGrantCall(cfg, from);
-  return call ? submitRomeTx(provider, { from, ...call }) : undefined;
+  if (!call) return undefined;
+  const hash = await submitRomeTx(provider, { from, ...call });
+  // A grant that reverts would otherwise only surface later as SPL 0x4 on the deposit.
+  const receipt = await publicClient(cfg).waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") throw new Error("wrapper grant did not succeed: the call reverted.");
+  return hash;
 }
 export function evmApprove(provider: Eip1193, from: Hex, cfg: RomeConfig, vault: Hex, amount: bigint) {
   return submitRomeTx(provider, { from, to: cfg.wusdc, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [vault, amount] }) });
