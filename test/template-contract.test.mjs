@@ -13,7 +13,7 @@
 // Run: node --test test/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -66,4 +66,72 @@ test("`npm run verify` runs the works-gate from the scaffold", () => {
   const verify = read("scripts", "verify.ts");
   assert.match(verify, /rome-protocol\/rome-cli/, "verify.ts must invoke the rome CLI (same gate, not a reimplementation)");
   assert.match(verify, /dotenv\/config/, "verify.ts must load .env so the CLI sees the keys");
+});
+
+test("the Solana lane is the v1 lane (submitRomeTxV1), with explicit provisioning", () => {
+  const rome = read("lib", "rome.ts");
+  assert.match(rome, /submitRomeTxV1/, "lib/rome.ts must send Solana-lane calls through submitRomeTxV1");
+  assert.ok(!/submitRomeTxSolanaLane|extraAccounts/.test(rome), "lib/rome.ts must not use the legacy lane or pass extraAccounts");
+  assert.match(rome, /export (async )?function solanaProvision/, "lib/rome.ts must expose the one-time provisioning step");
+  assert.match(read("src", "App.tsx"), /solanaProvision/, "the app must provision a fresh synthetic before its first approve");
+  assert.match(read("scripts", "demo.ts"), /submitRomeTxV1/, "demo.ts must name the v1 lane");
+});
+
+test("both lanes grant the wUSDC wrapper before the wrapper moves tokens", () => {
+  const rome = read("lib", "rome.ts");
+  assert.match(rome, /export async function wrapperGrantCall/, "lib/rome.ts must expose the wrapper-grant check");
+  assert.match(rome, /0xff00000000000000000000000000000000000009/, "the grant goes straight to the Helper precompile");
+  assert.match(rome, /approve_spl/, "the grant is approve_spl");
+  assert.match(rome, /isEnabled/, "the grant is skipped when isEnabled is true");
+  assert.match(rome, /export (async )?function evmGrant/, "lib/rome.ts must expose evmGrant");
+  assert.match(rome, /export (async )?function solanaGrant/, "lib/rome.ts must expose solanaGrant");
+  const before = (src, grant, approve, what) => {
+    const g = src.indexOf(grant), a = src.indexOf(approve);
+    assert.ok(g !== -1 && a !== -1 && g < a, `${what}: ${grant} must come before ${approve}`);
+  };
+  const app = read("src", "App.tsx");
+  before(app, "rome.evmGrant", "rome.evmApprove", "App.tsx EVM deposit");
+  before(app, "rome.solanaGrant", "rome.solanaDeposit", "App.tsx Solana deposit");
+  const demo = read("scripts", "demo.ts");
+  before(demo, "rome.evmGrant", "rome.evmApprove", "demo.ts EVM lane");
+  before(demo, "rome.solanaGrant", "rome.solanaDeposit", "demo.ts Solana lane");
+  assert.match(demo, /already enabled/, "demo.ts prints 'already enabled' when the grant is skipped");
+});
+
+test("the Solana lane is wallet-agnostic: Wallet Standard, no Phantom-only code", () => {
+  const wallet = read("lib", "solanaWallet.ts");
+  assert.match(wallet, /solana:signTransaction/, "lib/solanaWallet.ts must sign through solana:signTransaction");
+  assert.match(wallet, /solana:signMessage/, "lib/solanaWallet.ts must sign the authorization through solana:signMessage");
+  assert.ok(!existsSync(join(template, "lib", "phantomV1.ts")), "lib/phantomV1.ts must be gone");
+  for (const f of ["lib/solanaWallet.ts", "lib/rome.ts", "src/App.tsx", "scripts/demo.ts"]) {
+    const src = read(...f.split("/"));
+    assert.ok(!/window\.solana/.test(src), `${f} must not use window.solana`);
+    assert.ok(!/phantomV1/.test(src), `${f} must not reference phantomV1`);
+  }
+});
+
+test("the web app loads in a browser: Buffer is polyfilled before any Solana library", () => {
+  const main = read("src", "main.tsx");
+  const firstImport = main.split("\n").find((l) => l.startsWith("import "));
+  assert.match(firstImport ?? "", /^import "\.\/polyfills";/, "src/main.tsx must import ./polyfills before anything else (spl-token reads globalThis.Buffer on load)");
+  assert.match(read("src", "polyfills.ts"), /from "buffer"/, "the polyfill must come from the buffer package");
+  const pkg = JSON.parse(read("package.json"));
+  assert.ok(pkg.dependencies?.buffer, "buffer must be a direct dependency");
+});
+
+test("connecting a Solana wallet reads the accounts list Wallet Standard returns", () => {
+  const src = read("lib", "solanaWallet.ts");
+  assert.match(src, /const \{ accounts \} = await .*\["standard:connect"\]\.connect\(\)/, "standard:connect resolves to { accounts }, not an array");
+});
+
+test("a Solana deposit asks the wallet for a v1 signature before any value moves", () => {
+  // A wallet that cannot sign v1 transactions must fail before the fund leg moves
+  // the user's USDC into their Rome address, or the USDC is stranded there.
+  const firstV1BeforeFund = (src, what) => {
+    const fund = src.indexOf("rome.solanaFund"), approve = src.indexOf("rome.solanaApprove"), provision = src.indexOf("rome.solanaProvision");
+    assert.ok(fund !== -1 && approve !== -1 && provision !== -1, `${what}: flow calls missing`);
+    assert.ok(provision < fund && approve < fund, `${what}: provision and approve (v1 calls) must come before the fund leg`);
+  };
+  firstV1BeforeFund(read("src", "App.tsx"), "App.tsx Solana deposit");
+  firstV1BeforeFund(read("scripts", "demo.ts"), "demo.ts Solana lane");
 });

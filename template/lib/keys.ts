@@ -34,7 +34,7 @@ export function requireSolanaKey(): Keypair {
   if (!bytes || bytes.length !== 64) {
     bail(
       "ROME_SOLANA_KEY is not a real key yet. Fill it in .env: the JSON secret-key array that\n" +
-        "Phantom / solana-keygen export (64 numbers), funded with at least 0.6 USDC + 0.02 SOL.",
+        "solana-keygen writes (64 numbers, e.g. ~/.config/solana/id.json), funded with at least 0.6 USDC + 0.02 SOL.",
     );
   }
   return Keypair.fromSecretKey(bytes);
