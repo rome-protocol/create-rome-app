@@ -6,7 +6,7 @@ interface IERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
-/// A dual-lane vault. Both a MetaMask (EVM) user and a Phantom (Solana) user
+/// A dual-lane vault. Both a MetaMask (EVM) user and a Solana-wallet user
 /// deposit and withdraw the SAME ERC-20 token (the wUSDC wrapper) into the SAME
 /// state. On Rome a Solana user's balance is their wallet's SPL token account,
 /// surfaced 1:1 as this wrapper — so the vault is a plain ERC-20 vault; the SDK's

@@ -1,6 +1,6 @@
 // The dual-lane core. Both lanes act on the SAME Vault + the SAME wUSDC wrapper.
 // Every function is environment-agnostic — the demo/deploy scripts feed a Node
-// signer, the web app feeds an injected wallet (window.ethereum / window.solana).
+// signer, the web app feeds a wallet (window.ethereum for MetaMask, Wallet Standard for Solana).
 import {
   submitRomeTx,
   submitRomeTxV1,
@@ -92,8 +92,8 @@ export function evmWithdraw(provider: Eip1193, from: Hex, vault: Hex, amount: bi
   return submitRomeTx(provider, { from, to: vault, data: encodeFunctionData({ abi: VAULT_ABI, functionName: "withdraw", args: [amount] }) });
 }
 
-// ------------------------------ Solana lane (Phantom) ------------------------------
-// A Phantom user drives the same Vault with no EVM key. Their EVM identity is the
+// ------------------------------ Solana lane (any Solana wallet) ------------------------------
+// A Solana wallet user drives the same Vault with no EVM key. Their EVM identity is the
 // synthetic address; their spendable balance is the wallet ATA, surfaced as wUSDC.
 // The synthetic holds nothing at rest — value flows through it (fund → act → sweep).
 // Each call goes through `submitRomeTxV1`: the proxy composes ONE Solana v1

@@ -24,7 +24,7 @@ const w = (x: bigint) => `${formatUnits(x, 6)} wUSDC`;
 const AMT = 100_000n; // 0.1 wUSDC deposited by each lane
 
 console.log("chain", cfg.chainId, "| wUSDC", cfg.wusdc);
-console.log("EVM (MetaMask)", evm.address, "\nSolana (Phantom)", sol.publicKey.toBase58(), "→ synthetic", synth);
+console.log("EVM (MetaMask)", evm.address, "\nSolana wallet", sol.publicKey.toBase58(), "→ synthetic", synth);
 
 // Pre-flight: check funding BEFORE spending gas — a run deploys a fresh Vault
 // (~0.3 USDC gas) + wraps 0.15, and the Solana lane moves 0.5 USDC through the
@@ -84,7 +84,7 @@ const synthBal = await rome.vaultBalanceOf(cfg, vault, synth);
 console.log("vault.balanceOf(EVM)   =", w(evmBal), "(deposited then withdrew)");
 console.log("vault.balanceOf(synth) =", w(synthBal), "(deposited then withdrew)");
 if (evmBal === 0n && synthBal === 0n) {
-  console.log("\n✅ A MetaMask wallet AND a Phantom wallet each deposited into + withdrew from the SAME Vault. Dual-lane works.");
+  console.log("\n✅ A MetaMask wallet AND a Solana wallet each deposited into + withdrew from the SAME Vault. Dual-lane works.");
 } else {
   throw new Error("unexpected residual vault balance");
 }

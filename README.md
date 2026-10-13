@@ -2,14 +2,14 @@
 
 > **Rome Protocol runs EVM chains natively inside the Solana runtime** — Solidity apps call Solana programs atomically (CPI), and Solana users drive EVM apps: two VMs, one chain, one block.
 
-Scaffold a **dual-lane Rome app** in seconds — one Solidity contract that both a **MetaMask (EVM)** wallet and a **Phantom (Solana)** wallet drive, on [`@rome-protocol/sdk`](https://github.com/rome-protocol/rome-sdk-ts).
+Scaffold a **dual-lane Rome app** in seconds — one Solidity contract that both a **MetaMask (EVM)** wallet and a **Solana** wallet drive, on [`@rome-protocol/sdk`](https://github.com/rome-protocol/rome-sdk-ts).
 
 ```bash
 npx github:rome-protocol/create-rome-app my-app
 cd my-app
 npm install
 # fill in .env (EVM_KEY + SOLANA_KEY), fund both wallets — gas is USDC, bridge it in
-npm run demo      # headless: a MetaMask lane AND a Phantom lane each hit ONE Vault
+npm run demo      # headless: a MetaMask lane AND a Solana lane each hit ONE Vault
 npm run deploy    # deploy your own Vault → set VAULT_ADDRESS in .env
 npm run dev       # the web app — connect both wallets, deposit/withdraw
 ```
@@ -23,7 +23,7 @@ A minimal app where both wallets deposit into + withdraw from the same `Vault`, 
 - **`lib/rome.ts`** — both lanes in one file (`submitRomeTx` for EVM, `submitRomeTxV1` for Solana: one Solana v1 transaction per call, no lookup table)
 - **`contracts/Vault.sol`** — a plain ERC-20 vault over the wUSDC wrapper
 - **`scripts/demo.ts`** — the funded proof that both lanes hit one Vault
-- **`src/App.tsx`** — connect MetaMask + Phantom, deposit/withdraw
+- **`src/App.tsx`** — connect MetaMask + a Solana wallet, deposit/withdraw
 - registry-driven config — no hardcoded ids or addresses. Default chain: **Rome Hadrian**; pick another with `CHAIN_ID=<id>` in `.env` (`gen-config`, `deploy`, and `demo` all honor it)
 - a `.gitignore` that keeps `.env` (your private keys) out of git from the first commit
 

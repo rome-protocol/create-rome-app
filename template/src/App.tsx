@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatUnits, parseUnits, type Hex } from "viem";
-import { PublicKey, type Transaction } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import type { RomeConfig } from "../lib/config";
 import * as rome from "../lib/rome";
-import { phantomLaneSigner } from "../lib/phantomV1";
+import { connectSolanaWallet, laneWallet, listSolanaWallets, solanaChainId, type Account, type Wallet } from "../lib/solanaWallet";
 import configJson from "./config.generated.json";
 
 // Static config projected from the registry at build time (see scripts/gen-config.ts).
@@ -15,14 +15,15 @@ const btn: React.CSSProperties = { padding: "8px 14px", marginRight: 8, borderRa
 
 export default function App() {
   const [evmAddr, setEvmAddr] = useState<Hex>();
-  const [solPk, setSolPk] = useState<PublicKey>();
+  const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [sol, setSol] = useState<{ wallet: Wallet; account: Account }>();
   const [evmBal, setEvmBal] = useState("0");
   const [synthBal, setSynthBal] = useState("0");
   const [amount, setAmount] = useState("0.1");
   const [busy, setBusy] = useState("");
 
   const eth = () => (window as any).ethereum;
-  const phantom = () => (window as any).solana;
+  const solPk = useMemo(() => (sol ? new PublicKey(sol.account.publicKey) : undefined), [sol]);
   const synth = solPk ? rome.syntheticFor(solPk) : undefined;
   const amt = () => parseUnits(amount || "0", 6);
 
@@ -32,6 +33,7 @@ export default function App() {
     if (synth) setSynthBal(formatUnits(await rome.vaultBalanceOf(cfg, VAULT, synth), 6));
   }, [evmAddr, synth]);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => listSolanaWallets(cfg.solanaCluster, setWallets), []);
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(label);
@@ -48,15 +50,12 @@ export default function App() {
   });
   const evmWithdraw = () => run("EVM withdraw", () => rome.evmWithdraw(eth(), evmAddr!, VAULT!, amt()));
 
-  // Solana lane (Phantom → submitRomeTxV1). Fund → provision (first time) → grant the wrapper (first time) → approve → deposit; withdraw → sweep.
+  // Solana lane (any Wallet Standard wallet → submitRomeTxV1). Fund → provision (first time) → grant the wrapper (first time) → approve → deposit; withdraw → sweep.
   // `signTransaction` signs the two plain Solana transactions; `signer` signs each v1 call (two prompts).
-  const solWallet = (pk: PublicKey): rome.SolanaWallet => ({
-    signTransaction: (tx: Transaction) => phantom().signTransaction(tx),
-    signer: phantomLaneSigner(pk, phantom(), cfg.solanaCluster),
-  });
-  const connectPhantom = () => run("connecting Phantom", async () => { const r = await phantom().connect(); setSolPk(new PublicKey(r.publicKey.toString())); });
+  const solWallet = () => laneWallet(sol!.wallet, sol!.account, solanaChainId(cfg.solanaCluster));
+  const connectSol = (wallet: Wallet) => run(`connecting ${wallet.name}`, async () => setSol({ wallet, account: await connectSolanaWallet(wallet) }));
   const solDeposit = () => run("Solana deposit", async () => {
-    const w = solWallet(solPk!);
+    const w = solWallet();
     await rome.solanaFund(cfg, w, amt());
     await rome.solanaProvision(cfg, w);
     await rome.solanaGrant(cfg, w);
@@ -64,7 +63,7 @@ export default function App() {
     await rome.solanaDeposit(cfg, w, VAULT!, amt());
   });
   const solWithdraw = () => run("Solana withdraw", async () => {
-    const w = solWallet(solPk!);
+    const w = solWallet();
     await rome.solanaWithdraw(cfg, w, VAULT!, amt());
     await rome.solanaSweep(cfg, w, amt());
   });
@@ -72,7 +71,7 @@ export default function App() {
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: 760, margin: "40px auto", padding: "0 16px", lineHeight: 1.5 }}>
       <h1>Rome dual-lane vault</h1>
-      <p>One Vault. Two wallets. Same state — a MetaMask user and a Phantom user deposit the same wUSDC into the same contract on Rome chain {cfg.chainId}.</p>
+      <p>One Vault. Two wallets. Same state — a MetaMask user and a Solana wallet user deposit the same wUSDC into the same contract on Rome chain {cfg.chainId}.</p>
       {!VAULT && <p style={{ color: "#b00" }}>⚠ No Vault yet — run <code>npm run deploy</code>, set <code>VAULT_ADDRESS</code> in <code>.env</code>, then restart.</p>}
       {VAULT && <p style={{ fontSize: 13, color: "#666" }}>Vault {VAULT}</p>}
 
@@ -90,7 +89,7 @@ export default function App() {
         </section>
 
         <section style={box}>
-          <h2>Phantom · Solana lane</h2>
+          <h2>Solana wallet · Solana lane</h2>
           {solPk ? (
             <>
               <p style={{ fontSize: 13, wordBreak: "break-all" }}>{solPk.toBase58()}</p>
@@ -99,8 +98,10 @@ export default function App() {
               <button style={btn} disabled={!!busy || !VAULT} onClick={solDeposit}>Deposit</button>
               <button style={btn} disabled={!!busy || !VAULT} onClick={solWithdraw}>Withdraw</button>
             </>
-          ) : <button style={btn} onClick={connectPhantom}>Connect Phantom</button>}
-          <p style={{ fontSize: 12, color: "#666" }}>Each call to the Rome contract asks Phantom twice: once to approve the readable authorization, once to sign the transaction.</p>
+          ) : wallets.length ? wallets.map((w) => (
+            <button key={w.name} style={btn} disabled={!!busy} onClick={() => connectSol(w)}>Connect {w.name}</button>
+          )) : <p style={{ fontSize: 13 }}>No Solana wallet found. Install a wallet that supports Solana v1 transactions, such as Solflare.</p>}
+          <p style={{ fontSize: 12, color: "#666" }}>Each call to the Rome contract asks your wallet twice: once to approve the readable authorization, once to sign the transaction.</p>
         </section>
       </div>
 

@@ -13,7 +13,7 @@
 // Run: node --test test/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -96,4 +96,16 @@ test("both lanes grant the wUSDC wrapper before the first approve", () => {
   before(demo, "rome.evmGrant", "rome.evmApprove", "demo.ts EVM lane");
   before(demo, "rome.solanaGrant", "rome.solanaApprove", "demo.ts Solana lane");
   assert.match(demo, /already enabled/, "demo.ts prints 'already enabled' when the grant is skipped");
+});
+
+test("the Solana lane is wallet-agnostic: Wallet Standard, no Phantom-only code", () => {
+  const wallet = read("lib", "solanaWallet.ts");
+  assert.match(wallet, /solana:signTransaction/, "lib/solanaWallet.ts must sign through solana:signTransaction");
+  assert.match(wallet, /solana:signMessage/, "lib/solanaWallet.ts must sign the authorization through solana:signMessage");
+  assert.ok(!existsSync(join(template, "lib", "phantomV1.ts")), "lib/phantomV1.ts must be gone");
+  for (const f of ["lib/solanaWallet.ts", "lib/rome.ts", "src/App.tsx", "scripts/demo.ts"]) {
+    const src = read(...f.split("/"));
+    assert.ok(!/window\.solana/.test(src), `${f} must not use window.solana`);
+    assert.ok(!/phantomV1/.test(src), `${f} must not reference phantomV1`);
+  }
 });
