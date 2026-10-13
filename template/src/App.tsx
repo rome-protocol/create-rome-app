@@ -38,16 +38,17 @@ export default function App() {
     try { await fn(); await refresh(); } catch (e: any) { alert(e?.message ?? String(e)); } finally { setBusy(""); }
   }
 
-  // EVM lane (MetaMask → submitRomeTx). Wrap gas → wUSDC, then approve + deposit.
+  // EVM lane (MetaMask → submitRomeTx). Wrap gas → wUSDC, grant the wrapper (first time), then approve + deposit.
   const connectEvm = () => run("connecting MetaMask", async () => { const [a] = await eth().request({ method: "eth_requestAccounts" }); setEvmAddr(a); });
   const evmDeposit = () => run("EVM deposit", async () => {
     await rome.evmWrapToWusdc(eth(), evmAddr!, parseUnits(amount, 18));
+    await rome.evmGrant(eth(), evmAddr!, cfg);
     await rome.evmApprove(eth(), evmAddr!, cfg, VAULT!, amt());
     await rome.evmDeposit(eth(), evmAddr!, VAULT!, amt());
   });
   const evmWithdraw = () => run("EVM withdraw", () => rome.evmWithdraw(eth(), evmAddr!, VAULT!, amt()));
 
-  // Solana lane (Phantom → submitRomeTxV1). Fund → provision (first time) → approve → deposit; withdraw → sweep.
+  // Solana lane (Phantom → submitRomeTxV1). Fund → provision (first time) → grant the wrapper (first time) → approve → deposit; withdraw → sweep.
   // `signTransaction` signs the two plain Solana transactions; `signer` signs each v1 call (two prompts).
   const solWallet = (pk: PublicKey): rome.SolanaWallet => ({
     signTransaction: (tx: Transaction) => phantom().signTransaction(tx),
@@ -58,6 +59,7 @@ export default function App() {
     const w = solWallet(solPk!);
     await rome.solanaFund(cfg, w, amt());
     await rome.solanaProvision(cfg, w);
+    await rome.solanaGrant(cfg, w);
     await rome.solanaApprove(cfg, w, VAULT!, amt());
     await rome.solanaDeposit(cfg, w, VAULT!, amt());
   });

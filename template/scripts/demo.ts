@@ -49,9 +49,11 @@ if (short.length > 0) {
 const vault = await deployVault(cfg, evm);
 console.log("Vault:", vault);
 
-// ---- EVM lane: wrap gas → wUSDC, then approve → deposit → withdraw ----
+// ---- EVM lane: wrap gas → wUSDC, then grant → approve → deposit → withdraw ----
 console.log("\n== EVM lane (submitRomeTx) ==");
 await rome.evmWrapToWusdc(provider, evm.address, 150_000_000_000_000_000n); // 0.15 native USDC → wUSDC
+const evmGrant = await rome.evmGrant(provider, evm.address, cfg); // one-time: lets the wrapper move this wallet's wUSDC
+console.log("  wrapper grant:", evmGrant ? "granted" : "already enabled");
 await rome.evmApprove(provider, evm.address, cfg, vault, AMT);
 await rome.evmDeposit(provider, evm.address, vault, AMT);
 const evmDeposited = await rome.vaultBalanceOf(cfg, vault, evm.address);
@@ -59,13 +61,14 @@ console.log("EVM deposited →", w(evmDeposited));
 if (evmDeposited !== AMT) throw new Error("EVM deposit didn't hit the vault");
 await rome.evmWithdraw(provider, evm.address, vault, AMT);
 
-// ---- Solana lane (v1): fund → provision → approve → deposit → withdraw → sweep ----
+// ---- Solana lane (v1): fund → provision → grant → approve → deposit → withdraw → sweep ----
 // Each v1 call is one Solana v1 transaction composed by the proxy; print how it went.
-const show = (step: string, r?: { route: string; signature?: string }) =>
-  console.log(`  ${step}:`, r ? `${r.route}${r.signature ? ` ${r.signature}` : ""}` : "already provisioned");
+const show = (step: string, r?: { route: string; signature?: string }, skipped = "already done") =>
+  console.log(`  ${step}:`, r ? `${r.route}${r.signature ? ` ${r.signature}` : ""}` : skipped);
 console.log("\n== Solana lane (submitRomeTxV1) ==");
 await rome.solanaFund(cfg, wallet, 500_000n);      // 0.5 USDC → synthetic
-show("provision", await rome.solanaProvision(cfg, wallet)); // one-time create_pda; the v1 lane does not do it for you
+show("provision", await rome.solanaProvision(cfg, wallet), "already provisioned"); // one-time create_pda; the v1 lane does not do it for you
+show("wrapper grant", await rome.solanaGrant(cfg, wallet), "already enabled"); // one-time: lets the wrapper move the synthetic's wUSDC
 show("approve", await rome.solanaApprove(cfg, wallet, vault, AMT));
 show("deposit", await rome.solanaDeposit(cfg, wallet, vault, AMT));
 const synthDeposited = await rome.vaultBalanceOf(cfg, vault, synth);

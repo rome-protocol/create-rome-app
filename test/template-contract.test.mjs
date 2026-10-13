@@ -76,3 +76,24 @@ test("the Solana lane is the v1 lane (submitRomeTxV1), with explicit provisionin
   assert.match(read("src", "App.tsx"), /solanaProvision/, "the app must provision a fresh synthetic before its first approve");
   assert.match(read("scripts", "demo.ts"), /submitRomeTxV1/, "demo.ts must name the v1 lane");
 });
+
+test("both lanes grant the wUSDC wrapper before the first approve", () => {
+  const rome = read("lib", "rome.ts");
+  assert.match(rome, /export async function wrapperGrantCall/, "lib/rome.ts must expose the wrapper-grant check");
+  assert.match(rome, /0xff00000000000000000000000000000000000009/, "the grant goes straight to the Helper precompile");
+  assert.match(rome, /approve_spl/, "the grant is approve_spl");
+  assert.match(rome, /isEnabled/, "the grant is skipped when isEnabled is true");
+  assert.match(rome, /export (async )?function evmGrant/, "lib/rome.ts must expose evmGrant");
+  assert.match(rome, /export (async )?function solanaGrant/, "lib/rome.ts must expose solanaGrant");
+  const before = (src, grant, approve, what) => {
+    const g = src.indexOf(grant), a = src.indexOf(approve);
+    assert.ok(g !== -1 && a !== -1 && g < a, `${what}: ${grant} must come before ${approve}`);
+  };
+  const app = read("src", "App.tsx");
+  before(app, "rome.evmGrant", "rome.evmApprove", "App.tsx EVM deposit");
+  before(app, "rome.solanaGrant", "rome.solanaApprove", "App.tsx Solana deposit");
+  const demo = read("scripts", "demo.ts");
+  before(demo, "rome.evmGrant", "rome.evmApprove", "demo.ts EVM lane");
+  before(demo, "rome.solanaGrant", "rome.solanaApprove", "demo.ts Solana lane");
+  assert.match(demo, /already enabled/, "demo.ts prints 'already enabled' when the grant is skipped");
+});

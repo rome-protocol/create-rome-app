@@ -29,6 +29,14 @@ export const VAULT_ABI = parseAbi([
 const WITHDRAW = "0x4200000000000000000000000000000000000016" as const;
 const WITHDRAW_ABI = parseAbi(["function withdraw_to_ata(uint256 wei_)"]);
 
+// The wUSDC wrapper moves tokens as the SPL delegate of the user's token account, so each
+// wallet grants it that delegate right once (`approve_spl` sent straight to the Helper
+// precompile). Without the grant a wUSDC transferFrom fails with SPL error 0x4.
+const HELPER = "0xff00000000000000000000000000000000000009" as const;
+const GRANT_ABI = parseAbi(["function approve_spl(address spender, uint64 amount, bytes32 mint)"]);
+const WRAPPER_ABI = parseAbi(["function isEnabled(address user) view returns (bool)", "function mint_id() view returns (bytes32)"]);
+const U64_MAX = 2n ** 64n - 1n;
+
 type Eip1193 = { request: (args: { method: string; params?: any[] }) => Promise<any> };
 type SolSigner = (tx: Transaction) => Promise<Transaction>;
 /**
@@ -49,12 +57,25 @@ export function wusdcBalanceOf(cfg: RomeConfig, who: Hex): Promise<bigint> {
   return publicClient(cfg).readContract({ address: cfg.wusdc, abi: erc20Abi, functionName: "balanceOf", args: [who] }) as Promise<bigint>;
 }
 
+/** The one-time wrapper grant `who` still needs, or null when the wrapper can already move their tokens. */
+export async function wrapperGrantCall(cfg: RomeConfig, who: Hex): Promise<{ to: Hex; data: Hex } | null> {
+  const client = publicClient(cfg);
+  if (await client.readContract({ address: cfg.wusdc, abi: WRAPPER_ABI, functionName: "isEnabled", args: [who] })) return null;
+  const mint = await client.readContract({ address: cfg.wusdc, abi: WRAPPER_ABI, functionName: "mint_id" });
+  return { to: HELPER, data: encodeFunctionData({ abi: GRANT_ABI, functionName: "approve_spl", args: [cfg.wusdc, U64_MAX, mint] }) };
+}
+
 // ------------------------------ EVM lane (MetaMask) ------------------------------
 // A MetaMask user has native gas (USDC). `evmWrapToWusdc` turns some into the
 // wUSDC wrapper (18-dec `weiAmount` in, 6-dec wUSDC out); then it's a normal
-// ERC-20 approve → deposit → withdraw, each via `submitRomeTx`.
+// ERC-20 grant (once) → approve → deposit → withdraw, each via `submitRomeTx`.
 export function evmWrapToWusdc(provider: Eip1193, from: Hex, weiAmount: bigint) {
   return submitRomeTx(provider, { from, to: WITHDRAW, data: encodeFunctionData({ abi: WITHDRAW_ABI, functionName: "withdraw_to_ata", args: [weiAmount] }) });
+}
+/** One-time wrapper grant for a MetaMask user. Returns undefined when it was already in place. */
+export async function evmGrant(provider: Eip1193, from: Hex, cfg: RomeConfig) {
+  const call = await wrapperGrantCall(cfg, from);
+  return call ? submitRomeTx(provider, { from, ...call }) : undefined;
 }
 export function evmApprove(provider: Eip1193, from: Hex, cfg: RomeConfig, vault: Hex, amount: bigint) {
   return submitRomeTx(provider, { from, to: cfg.wusdc, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [vault, amount] }) });
@@ -102,6 +123,11 @@ export async function solanaProvision(cfg: RomeConfig, wallet: SolanaWallet) {
   const deps = laneV1Deps(cfg, wallet.signer);
   if (await isSyntheticProvisioned(deps.connection, cfg.programId, synthetic)) return undefined;
   return landed("provision", submitRomeTxV1(deps, buildCreatePdaCall(synthetic)));
+}
+/** One-time wrapper grant for a Solana user's synthetic address, as one v1 call. Returns undefined when it was already in place. */
+export async function solanaGrant(cfg: RomeConfig, wallet: SolanaWallet) {
+  const call = await wrapperGrantCall(cfg, syntheticAddress(payerOf(wallet)));
+  return call ? landed("wrapper grant", submitRomeTxV1(laneV1Deps(cfg, wallet.signer), call)) : undefined;
 }
 export function solanaApprove(cfg: RomeConfig, wallet: SolanaWallet, vault: Hex, amount: bigint) {
   return landed("approve", submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: cfg.wusdc, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [vault, amount] }) }));
