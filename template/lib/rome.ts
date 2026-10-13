@@ -115,8 +115,8 @@ async function landed<R extends { receipt: { status?: string } | null }>(step: s
 }
 /**
  * Fund leg: top the synthetic's wUSDC up to `amount` (6-dec) with USDC from the wallet. Only the
- * shortfall moves, so a Deposit retried after a failure never sends extra USDC, and USDC an
- * earlier attempt left in the synthetic is used. Returns undefined when nothing was missing.
+ * shortfall moves, so a Deposit retried after a failure reuses USDC an earlier attempt left in
+ * the synthetic instead of sending it again. Returns undefined when nothing was missing.
  */
 export async function solanaFund(cfg: RomeConfig, wallet: SolanaWallet, amount: bigint) {
   const payer = payerOf(wallet);

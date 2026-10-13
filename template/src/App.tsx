@@ -50,7 +50,7 @@ export default function App() {
   });
   const evmWithdraw = () => run("EVM withdraw", () => rome.evmWithdraw(eth(), evmAddr!, VAULT!, amt()));
 
-  // Solana lane (any Wallet Standard wallet → submitRomeTxV1). Fund → provision (first time) → grant the wrapper (first time) → approve → deposit; withdraw → sweep.
+  // Solana lane (any Wallet Standard wallet → submitRomeTxV1). Provision (first time) → approve → fund (only the shortfall) → grant the wrapper (first time) → deposit; withdraw → sweep.
   // `signer` signs every step as a Solana v1 transaction (two prompts for each lane call).
   const solWallet = () => laneWallet(sol!.wallet, sol!.account, solanaChainId(cfg.solanaCluster));
   const connectSol = (wallet: Wallet) => run(`connecting ${wallet.name}`, async () => setSol({ wallet, account: await connectSolanaWallet(wallet) }));

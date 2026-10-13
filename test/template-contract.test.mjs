@@ -139,7 +139,7 @@ test("a Solana deposit asks the wallet for a v1 signature before any value moves
 test("every Solana-lane step is a v1 transaction: no legacy submitSolanaInstructions, no signTransaction on the wallet", () => {
   const rome = read("lib", "rome.ts");
   for (const f of ["lib/rome.ts", "lib/solanaWallet.ts", "src/App.tsx", "scripts/demo.ts"]) {
-    assert.ok(!/submitSolanaInstructions\(/.test(read(...f.split("/"))), `${f} must not call the legacy submitSolanaInstructions`);
+    assert.ok(!/\bsubmitSolanaInstructions\b(?!V1)/.test(read(...f.split("/"))), `${f} must not call or import the legacy submitSolanaInstructions`);
   }
   const fn = (name) => {
     const m = rome.match(new RegExp(`export (?:async )?function ${name}\\b[\\s\\S]*?\\n\\}\\n`));
@@ -162,6 +162,7 @@ test("the fund step is retry-safe: it funds only the shortfall and skips when no
   const body = fund[0];
   assert.match(body, /wusdcBalanceOf\(/, "solanaFund must read the synthetic's current wUSDC balance");
   assert.match(body, /amount\s*-\s*\w+/, "solanaFund must subtract the balance from the amount");
+  assert.match(body, /buildFundLeg\(\{[^}]*amount:\s*shortfall/, "the shortfall, not the full amount, must reach buildFundLeg");
   assert.match(body, /return undefined/, "solanaFund must return undefined when nothing is missing");
   assert.ok(body.indexOf("return undefined") < body.indexOf("submitSolanaInstructionsV1("), "the early return must come before the fund leg is sent");
   assert.match(read("scripts", "demo.ts"), /already funded/, "demo.ts prints 'already funded' when the fund step is skipped");

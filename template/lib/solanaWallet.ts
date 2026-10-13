@@ -1,9 +1,9 @@
 // Any Wallet Standard Solana wallet as the Solana lane's signer. The v1 lane asks
 // the wallet for two signatures per call: a readable authorization message, then
-// the Solana v1 transaction itself. The fund leg and the token-account creation are
-// v1 transactions too, so they use the same signer. Both go through Wallet Standard, so there is
+// the Solana v1 transaction itself. Both go through Wallet Standard, so there is
 // no wallet-specific code here: a wallet that offers `solana:signMessage` and
-// `solana:signTransaction` (for v1 transactions) works.
+// `solana:signTransaction` (for v1 transactions) works. The fund leg and the token-account
+// creation are v1 transactions too, so they use the same signer.
 import { getWallets } from "@wallet-standard/app";
 import { PublicKey } from "@solana/web3.js";
 import type { SolanaWallet } from "./rome";
