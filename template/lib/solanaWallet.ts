@@ -2,9 +2,10 @@
 // the wallet for two signatures per call: a readable authorization message, then
 // the Solana v1 transaction itself. Both go through Wallet Standard, so there is
 // no wallet-specific code here: a wallet that offers `solana:signMessage` and
-// `solana:signTransaction` (for v1 transactions) works.
+// `solana:signTransaction` (for v1 transactions) works. The fund leg and the token-account
+// creation are v1 transactions too, so they use the same signer.
 import { getWallets } from "@wallet-standard/app";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import type { SolanaWallet } from "./rome";
 
 export type Wallet = ReturnType<ReturnType<typeof getWallets>["get"]>[number];
@@ -53,8 +54,5 @@ export function laneWallet(wallet: Wallet, account: Account, chain: string): Sol
       },
       signV1Wire: async (wire) => (await signWire(wire)).slice(-64), // the 64-byte signature at the end of the signed wire
     },
-    // The two ordinary native legs (fund, wallet token-account creation).
-    signTransaction: async (tx: Transaction) =>
-      Transaction.from(await signWire(tx.serialize({ requireAllSignatures: false, verifySignatures: false }))),
   };
 }
