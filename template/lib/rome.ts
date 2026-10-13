@@ -9,12 +9,12 @@ import {
   buildSweepLeg,
   buildCreatePdaCall,
   isSyntheticProvisioned,
-  submitSolanaInstructions,
+  submitSolanaInstructionsV1,
   toLaneSigner,
   type SignerLike,
 } from "@rome-protocol/sdk";
 import { createPublicClient, http, encodeFunctionData, erc20Abi, parseAbi, type Hex } from "viem";
-import { Connection, PublicKey, type Transaction } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import type { RomeConfig } from "./config.js";
 
 export const VAULT_ABI = parseAbi([
@@ -38,13 +38,11 @@ const WRAPPER_ABI = parseAbi(["function isEnabled(address user) view returns (bo
 const U64_MAX = 2n ** 64n - 1n;
 
 type Eip1193 = { request: (args: { method: string; params?: any[] }) => Promise<any> };
-type SolSigner = (tx: Transaction) => Promise<Transaction>;
 /**
- * What a Solana user hands the lane helpers. `signer` signs the v1 calls (a
- * wallet's LaneSigner, or a Keypair in scripts); `signTransaction` signs the
- * two ordinary Solana transactions (the fund and the sweep's token-account step).
+ * What a Solana user hands the lane helpers. `signer` signs every step, since each
+ * one is a Solana v1 transaction (a wallet's LaneSigner, or a Keypair in scripts).
  */
-export type SolanaWallet = { signer: SignerLike; signTransaction: SolSigner };
+export type SolanaWallet = { signer: SignerLike };
 
 // ------------------------------ reads (either lane) ------------------------------
 export function publicClient(cfg: RomeConfig) {
@@ -96,10 +94,11 @@ export function evmWithdraw(provider: Eip1193, from: Hex, vault: Hex, amount: bi
 // A Solana wallet user drives the same Vault with no EVM key. Their EVM identity is the
 // synthetic address; their spendable balance is the wallet ATA, surfaced as wUSDC.
 // The synthetic holds nothing at rest — value flows through it (fund → act → sweep).
-// Each call goes through `submitRomeTxV1`: the proxy composes ONE Solana v1
-// transaction for it (no lookup table, no account list to build), and the wallet
-// is asked twice per call — first to approve a readable authorization message,
-// then to sign the transaction itself.
+// Every step is a Solana v1 transaction. A lane call goes through `submitRomeTxV1`: the
+// proxy composes ONE v1 transaction for it (no lookup table, no account list to build), and
+// the wallet is asked twice per call — first to approve a readable authorization message,
+// then to sign the transaction itself. The plain Solana steps (the fund leg and the wallet
+// token-account creation) go through `submitSolanaInstructionsV1`: one v1 transaction, one signature.
 export function syntheticFor(payer: PublicKey): Hex {
   return syntheticAddress(payer);
 }
@@ -114,12 +113,20 @@ async function landed<R extends { receipt: { status?: string } | null }>(step: s
   if (r.receipt?.status !== "0x1") throw new Error(`${step} did not succeed: ${r.receipt ? "the call reverted" : "no receipt arrived in time"}.`);
   return r;
 }
-/** Fund leg: move `amount` (6-dec) of USDC from the wallet into the synthetic's token account. */
-export function solanaFund(cfg: RomeConfig, wallet: SolanaWallet, amount: bigint) {
+/**
+ * Fund leg: top the synthetic's wUSDC up to `amount` (6-dec) with USDC from the wallet. Only the
+ * shortfall moves, so a Deposit retried after a failure never sends extra USDC, and USDC an
+ * earlier attempt left in the synthetic is used. Returns undefined when nothing was missing.
+ */
+export async function solanaFund(cfg: RomeConfig, wallet: SolanaWallet, amount: bigint) {
   const payer = payerOf(wallet);
-  return submitSolanaInstructions(
-    buildFundLeg({ programId: cfg.programId, chainId: cfg.chainId, mint: new PublicKey(cfg.usdcMint), amount, wallet: payer, synthetic: syntheticAddress(payer) }),
-    { connection: new Connection(cfg.solanaRpc, "confirmed"), feePayer: payer, signTransaction: wallet.signTransaction },
+  const synthetic = syntheticAddress(payer);
+  const balance = await wusdcBalanceOf(cfg, synthetic);
+  if (balance >= amount) return undefined;
+  const shortfall = amount - balance;
+  return submitSolanaInstructionsV1(
+    buildFundLeg({ programId: cfg.programId, chainId: cfg.chainId, mint: new PublicKey(cfg.usdcMint), amount: shortfall, wallet: payer, synthetic }),
+    { connection: new Connection(cfg.solanaRpc, "confirmed"), signer: wallet.signer },
   );
 }
 /** One-time setup for a fresh synthetic (`create_pda`). The v1 lane does not do it for you; call it before the first approve. Returns undefined when it was already done. */
@@ -148,6 +155,6 @@ export async function solanaSweep(cfg: RomeConfig, wallet: SolanaWallet, amount:
   const payer = payerOf(wallet);
   const connection = new Connection(cfg.solanaRpc, "confirmed");
   const sweep = buildSweepLeg({ programId: cfg.programId, mint: new PublicKey(cfg.usdcMint), amount, wallet: payer, synthetic: syntheticAddress(payer) });
-  await submitSolanaInstructions([sweep.ensureWalletAtaIx], { connection, feePayer: payer, signTransaction: wallet.signTransaction });
+  await submitSolanaInstructionsV1([sweep.ensureWalletAtaIx], { connection, signer: wallet.signer });
   return landed("sweep", submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: sweep.helperTo, data: sweep.calldata }));
 }

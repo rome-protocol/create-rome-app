@@ -135,3 +135,34 @@ test("a Solana deposit asks the wallet for a v1 signature before any value moves
   firstV1BeforeFund(read("src", "App.tsx"), "App.tsx Solana deposit");
   firstV1BeforeFund(read("scripts", "demo.ts"), "demo.ts Solana lane");
 });
+
+test("every Solana-lane step is a v1 transaction: no legacy submitSolanaInstructions, no signTransaction on the wallet", () => {
+  const rome = read("lib", "rome.ts");
+  for (const f of ["lib/rome.ts", "lib/solanaWallet.ts", "src/App.tsx", "scripts/demo.ts"]) {
+    assert.ok(!/submitSolanaInstructions\(/.test(read(...f.split("/"))), `${f} must not call the legacy submitSolanaInstructions`);
+  }
+  const fn = (name) => {
+    const m = rome.match(new RegExp(`export (?:async )?function ${name}\\b[\\s\\S]*?\\n\\}\\n`));
+    assert.ok(m, `lib/rome.ts must define ${name}`);
+    return m[0];
+  };
+  assert.match(fn("solanaFund"), /submitSolanaInstructionsV1\(/, "the fund leg goes out as a v1 transaction");
+  assert.match(fn("solanaSweep"), /submitSolanaInstructionsV1\(/, "the wallet token-account creation goes out as a v1 transaction");
+  const type = rome.match(/export type SolanaWallet = \{[^}]*\}/);
+  assert.ok(type, "lib/rome.ts must export the SolanaWallet type");
+  assert.ok(!/signTransaction/.test(type[0]), "SolanaWallet must not carry signTransaction");
+  assert.ok(!/signTransaction\s*:/.test(read("lib", "solanaWallet.ts")), "laneWallet must return { signer } only");
+  assert.ok(!/signTransaction\s*:/.test(read("scripts", "demo.ts")), "demo.ts must not hand over a signTransaction callback");
+});
+
+test("the fund step is retry-safe: it funds only the shortfall and skips when nothing is missing", () => {
+  const rome = read("lib", "rome.ts");
+  const fund = rome.match(/export async function solanaFund\b[\s\S]*?\n\}\n/);
+  assert.ok(fund, "solanaFund must be async (it reads the synthetic's balance first)");
+  const body = fund[0];
+  assert.match(body, /wusdcBalanceOf\(/, "solanaFund must read the synthetic's current wUSDC balance");
+  assert.match(body, /amount\s*-\s*\w+/, "solanaFund must subtract the balance from the amount");
+  assert.match(body, /return undefined/, "solanaFund must return undefined when nothing is missing");
+  assert.ok(body.indexOf("return undefined") < body.indexOf("submitSolanaInstructionsV1("), "the early return must come before the fund leg is sent");
+  assert.match(read("scripts", "demo.ts"), /already funded/, "demo.ts prints 'already funded' when the fund step is skipped");
+});

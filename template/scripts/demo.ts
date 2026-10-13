@@ -15,8 +15,7 @@ import * as rome from "../lib/rome.js";
 const cfg = loadConfig({ chainId: process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : undefined, proxyUrl: process.env.PROXY_URL, solanaRpc: process.env.SOLANA_RPC });
 const evm = requireEvmKey();
 const sol = requireSolanaKey();
-const solSign = async (tx: any) => { tx.partialSign(sol); return tx; };
-const wallet: rome.SolanaWallet = { signer: sol, signTransaction: solSign }; // a Keypair signs both v1 prompts
+const wallet: rome.SolanaWallet = { signer: sol }; // a Keypair signs every step, each one a v1 transaction
 const provider = eip1193FromAccount(evm, cfg.proxyUrl, cfg.chainId);
 const synth = rome.syntheticFor(sol.publicKey);
 const w = (x: bigint) => `${formatUnits(x, 6)} wUSDC`;
@@ -63,13 +62,13 @@ await rome.evmWithdraw(provider, evm.address, vault, AMT);
 
 // ---- Solana lane (v1): provision → approve → fund → grant → deposit → withdraw → sweep ----
 // The v1 calls come first, so a wallet that cannot sign them stops before any USDC moves.
-// Each v1 call is one Solana v1 transaction composed by the proxy; print how it went.
-const show = (step: string, r?: { route: string; signature?: string }, skipped = "already done") =>
-  console.log(`  ${step}:`, r ? `${r.route}${r.signature ? ` ${r.signature}` : ""}` : skipped);
+// Every step is a Solana v1 transaction (the lane calls are composed by the proxy); print how it went.
+const show = (step: string, r?: { route?: string; signature?: string }, skipped = "already done") =>
+  console.log(`  ${step}:`, r ? `${r.route ?? "v1"}${r.signature ? ` ${r.signature}` : ""}` : skipped);
 console.log("\n== Solana lane (submitRomeTxV1) ==");
 show("provision", await rome.solanaProvision(cfg, wallet), "already provisioned"); // one-time create_pda; the v1 lane does not do it for you
 show("approve", await rome.solanaApprove(cfg, wallet, vault, AMT));
-await rome.solanaFund(cfg, wallet, 500_000n);      // 0.5 USDC → synthetic
+show("fund", await rome.solanaFund(cfg, wallet, 500_000n), "already funded"); // tops the synthetic up to 0.5 USDC; only the shortfall moves
 show("wrapper grant", await rome.solanaGrant(cfg, wallet), "already enabled"); // one-time: lets the wrapper move the synthetic's wUSDC
 show("deposit", await rome.solanaDeposit(cfg, wallet, vault, AMT));
 const synthDeposited = await rome.vaultBalanceOf(cfg, vault, synth);
