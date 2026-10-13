@@ -6,6 +6,7 @@ export interface RomeConfig {
   chainId: number;
   proxyUrl: string; // EVM JSON-RPC + rome_emulateCallAccounts
   solanaRpc: string; // Solana RPC (the Solana lane submits + confirms here)
+  solanaCluster: string; // the Solana cluster the chain settles on ("devnet", "mainnet", ...), as the registry names it
   programId: string; // rome-evm program id
   wusdc: Hex; // the ERC20SPL wrapper — the token both lanes spend
   usdcMint: string; // the underlying Circle USDC SPL mint (Solana side)
@@ -33,6 +34,7 @@ export function loadConfig(overrides: { chainId?: number; proxyUrl?: string; sol
     chainId,
     proxyUrl: overrides.proxyUrl || chain.rpcUrl,
     solanaRpc: overrides.solanaRpc || chain.solana.rpc,
+    solanaCluster: chain.solana.cluster,
     programId: chain.romeEvmProgramId,
     wusdc: usdc.address as Hex,
     usdcMint: usdc.mintId,

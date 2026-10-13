@@ -3,6 +3,7 @@ import { formatUnits, parseUnits, type Hex } from "viem";
 import { PublicKey, type Transaction } from "@solana/web3.js";
 import type { RomeConfig } from "../lib/config";
 import * as rome from "../lib/rome";
+import { phantomLaneSigner } from "../lib/phantomV1";
 import configJson from "./config.generated.json";
 
 // Static config projected from the registry at build time (see scripts/gen-config.ts).
@@ -46,17 +47,24 @@ export default function App() {
   });
   const evmWithdraw = () => run("EVM withdraw", () => rome.evmWithdraw(eth(), evmAddr!, VAULT!, amt()));
 
-  // Solana lane (Phantom → submitRomeTxSolanaLane). Fund → approve (auto-provision) → deposit; sweep on withdraw.
-  const solSign = (tx: Transaction) => phantom().signTransaction(tx);
+  // Solana lane (Phantom → submitRomeTxV1). Fund → provision (first time) → approve → deposit; withdraw → sweep.
+  // `signTransaction` signs the two plain Solana transactions; `signer` signs each v1 call (two prompts).
+  const solWallet = (pk: PublicKey): rome.SolanaWallet => ({
+    signTransaction: (tx: Transaction) => phantom().signTransaction(tx),
+    signer: phantomLaneSigner(pk, phantom(), cfg.solanaCluster),
+  });
   const connectPhantom = () => run("connecting Phantom", async () => { const r = await phantom().connect(); setSolPk(new PublicKey(r.publicKey.toString())); });
   const solDeposit = () => run("Solana deposit", async () => {
-    await rome.solanaFund(cfg, solPk!, solSign, amt());
-    await rome.solanaApprove(cfg, solPk!, solSign, VAULT!, amt());
-    await rome.solanaDeposit(cfg, solPk!, solSign, VAULT!, amt());
+    const w = solWallet(solPk!);
+    await rome.solanaFund(cfg, w, amt());
+    await rome.solanaProvision(cfg, w);
+    await rome.solanaApprove(cfg, w, VAULT!, amt());
+    await rome.solanaDeposit(cfg, w, VAULT!, amt());
   });
   const solWithdraw = () => run("Solana withdraw", async () => {
-    await rome.solanaWithdraw(cfg, solPk!, solSign, VAULT!, amt());
-    await rome.solanaSweep(cfg, solPk!, solSign, amt());
+    const w = solWallet(solPk!);
+    await rome.solanaWithdraw(cfg, w, VAULT!, amt());
+    await rome.solanaSweep(cfg, w, amt());
   });
 
   return (
@@ -90,6 +98,7 @@ export default function App() {
               <button style={btn} disabled={!!busy || !VAULT} onClick={solWithdraw}>Withdraw</button>
             </>
           ) : <button style={btn} onClick={connectPhantom}>Connect Phantom</button>}
+          <p style={{ fontSize: 12, color: "#666" }}>Each Solana-lane step asks Phantom twice: once to approve the readable authorization, once to sign the transaction.</p>
         </section>
       </div>
 

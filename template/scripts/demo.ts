@@ -1,6 +1,8 @@
 // Headless proof that BOTH lanes drive the SAME Vault. Fund the two wallets in
 // .env (EVM: USDC gas on Rome; Solana: SOL + USDC), then `npm run demo`.
-// This is exactly what the web app (src/App.tsx) does, minus the wallet UI.
+// This is exactly what the web app (src/App.tsx) does, minus the wallet UI. The
+// EVM lane uses submitRomeTx; the Solana lane uses submitRomeTxV1 (one Solana v1
+// transaction per call, signed here by the Keypair instead of a wallet).
 import "dotenv/config";
 import { formatUnits } from "viem";
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -14,6 +16,7 @@ const cfg = loadConfig({ chainId: process.env.CHAIN_ID ? Number(process.env.CHAI
 const evm = requireEvmKey();
 const sol = requireSolanaKey();
 const solSign = async (tx: any) => { tx.partialSign(sol); return tx; };
+const wallet: rome.SolanaWallet = { signer: sol, signTransaction: solSign }; // a Keypair signs both v1 prompts
 const provider = eip1193FromAccount(evm, cfg.proxyUrl, cfg.chainId);
 const synth = rome.syntheticFor(sol.publicKey);
 const w = (x: bigint) => `${formatUnits(x, 6)} wUSDC`;
@@ -56,16 +59,20 @@ console.log("EVM deposited →", w(evmDeposited));
 if (evmDeposited !== AMT) throw new Error("EVM deposit didn't hit the vault");
 await rome.evmWithdraw(provider, evm.address, vault, AMT);
 
-// ---- Solana lane: fund → approve (auto-provision) → deposit → withdraw → sweep ----
-console.log("\n== Solana lane (submitRomeTxSolanaLane) ==");
-await rome.solanaFund(cfg, sol.publicKey, solSign, 500_000n);      // 0.5 USDC → synthetic
-await rome.solanaApprove(cfg, sol.publicKey, solSign, vault, AMT); // first lane call → auto-provision (create_pda)
-await rome.solanaDeposit(cfg, sol.publicKey, solSign, vault, AMT);
+// ---- Solana lane (v1): fund → provision → approve → deposit → withdraw → sweep ----
+// Each v1 call is one Solana v1 transaction composed by the proxy; print how it went.
+const show = (step: string, r?: { route: string; signature?: string }) =>
+  console.log(`  ${step}:`, r ? `${r.route}${r.signature ? ` ${r.signature}` : ""}` : "already provisioned");
+console.log("\n== Solana lane (submitRomeTxV1) ==");
+await rome.solanaFund(cfg, wallet, 500_000n);      // 0.5 USDC → synthetic
+show("provision", await rome.solanaProvision(cfg, wallet)); // one-time create_pda; the v1 lane does not do it for you
+show("approve", await rome.solanaApprove(cfg, wallet, vault, AMT));
+show("deposit", await rome.solanaDeposit(cfg, wallet, vault, AMT));
 const synthDeposited = await rome.vaultBalanceOf(cfg, vault, synth);
 console.log("Solana deposited →", w(synthDeposited));
 if (synthDeposited !== AMT) throw new Error("Solana deposit didn't hit the vault");
-await rome.solanaWithdraw(cfg, sol.publicKey, solSign, vault, AMT);
-await rome.solanaSweep(cfg, sol.publicKey, solSign, 500_000n);     // sweep everything back to the wallet
+show("withdraw", await rome.solanaWithdraw(cfg, wallet, vault, AMT));
+show("sweep", await rome.solanaSweep(cfg, wallet, 500_000n)); // sweep everything back to the wallet
 
 // ---- both lanes used the SAME vault ----
 console.log("\n== both lanes, one Vault ==");
