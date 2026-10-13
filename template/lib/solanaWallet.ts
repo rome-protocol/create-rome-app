@@ -24,7 +24,8 @@ export function listSolanaWallets(cluster: string, onChange: (wallets: Wallet[])
   const { get, on } = getWallets();
   const emit = () => onChange(get().filter((w) => usable(w, chain)));
   emit();
-  return on("register", emit);
+  const offs = [on("register", emit), on("unregister", emit)];
+  return () => offs.forEach((off) => off());
 }
 
 export async function connectSolanaWallet(wallet: Wallet): Promise<Account> {
@@ -44,7 +45,10 @@ export function laneWallet(wallet: Wallet, account: Account, chain: string): Sol
     signer: {
       payer: new PublicKey(account.publicKey),
       signAuthHash: async (message) => {
-        const [{ signature }] = await features["solana:signMessage"].signMessage({ account, message });
+        const [{ signature, signedMessage }] = await features["solana:signMessage"].signMessage({ account, message });
+        // Wallet Standard lets a wallet alter the message before signing; Rome checks the exact bytes, so fail clearly here.
+        if (signedMessage && (signedMessage.length !== message.length || signedMessage.some((b: number, i: number) => b !== message[i])))
+          throw new Error(`${wallet.name} changed the authorization message before signing it.`);
         return signature; // 64 bytes
       },
       signV1Wire: async (wire) => (await signWire(wire)).slice(-64), // the 64-byte signature at the end of the signed wire

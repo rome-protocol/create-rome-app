@@ -77,7 +77,7 @@ test("the Solana lane is the v1 lane (submitRomeTxV1), with explicit provisionin
   assert.match(read("scripts", "demo.ts"), /submitRomeTxV1/, "demo.ts must name the v1 lane");
 });
 
-test("both lanes grant the wUSDC wrapper before the first approve", () => {
+test("both lanes grant the wUSDC wrapper before the wrapper moves tokens", () => {
   const rome = read("lib", "rome.ts");
   assert.match(rome, /export async function wrapperGrantCall/, "lib/rome.ts must expose the wrapper-grant check");
   assert.match(rome, /0xff00000000000000000000000000000000000009/, "the grant goes straight to the Helper precompile");
@@ -91,10 +91,10 @@ test("both lanes grant the wUSDC wrapper before the first approve", () => {
   };
   const app = read("src", "App.tsx");
   before(app, "rome.evmGrant", "rome.evmApprove", "App.tsx EVM deposit");
-  before(app, "rome.solanaGrant", "rome.solanaApprove", "App.tsx Solana deposit");
+  before(app, "rome.solanaGrant", "rome.solanaDeposit", "App.tsx Solana deposit");
   const demo = read("scripts", "demo.ts");
   before(demo, "rome.evmGrant", "rome.evmApprove", "demo.ts EVM lane");
-  before(demo, "rome.solanaGrant", "rome.solanaApprove", "demo.ts Solana lane");
+  before(demo, "rome.solanaGrant", "rome.solanaDeposit", "demo.ts Solana lane");
   assert.match(demo, /already enabled/, "demo.ts prints 'already enabled' when the grant is skipped");
 });
 
@@ -122,4 +122,16 @@ test("the web app loads in a browser: Buffer is polyfilled before any Solana lib
 test("connecting a Solana wallet reads the accounts list Wallet Standard returns", () => {
   const src = read("lib", "solanaWallet.ts");
   assert.match(src, /const \{ accounts \} = await .*\["standard:connect"\]\.connect\(\)/, "standard:connect resolves to { accounts }, not an array");
+});
+
+test("a Solana deposit asks the wallet for a v1 signature before any value moves", () => {
+  // A wallet that cannot sign v1 transactions must fail before the fund leg moves
+  // the user's USDC into their Rome address, or the USDC is stranded there.
+  const firstV1BeforeFund = (src, what) => {
+    const fund = src.indexOf("rome.solanaFund"), approve = src.indexOf("rome.solanaApprove"), provision = src.indexOf("rome.solanaProvision");
+    assert.ok(fund !== -1 && approve !== -1 && provision !== -1, `${what}: flow calls missing`);
+    assert.ok(provision < fund && approve < fund, `${what}: provision and approve (v1 calls) must come before the fund leg`);
+  };
+  firstV1BeforeFund(read("src", "App.tsx"), "App.tsx Solana deposit");
+  firstV1BeforeFund(read("scripts", "demo.ts"), "demo.ts Solana lane");
 });

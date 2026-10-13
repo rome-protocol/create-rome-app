@@ -56,10 +56,11 @@ export default function App() {
   const connectSol = (wallet: Wallet) => run(`connecting ${wallet.name}`, async () => setSol({ wallet, account: await connectSolanaWallet(wallet) }));
   const solDeposit = () => run("Solana deposit", async () => {
     const w = solWallet();
-    await rome.solanaFund(cfg, w, amt());
+    // v1 calls first: a wallet that cannot sign v1 transactions stops here, before the fund leg moves any USDC.
     await rome.solanaProvision(cfg, w);
-    await rome.solanaGrant(cfg, w);
     await rome.solanaApprove(cfg, w, VAULT!, amt());
+    await rome.solanaFund(cfg, w, amt());
+    await rome.solanaGrant(cfg, w);
     await rome.solanaDeposit(cfg, w, VAULT!, amt());
   });
   const solWithdraw = () => run("Solana withdraw", async () => {
@@ -98,8 +99,8 @@ export default function App() {
               <button style={btn} disabled={!!busy || !VAULT} onClick={solDeposit}>Deposit</button>
               <button style={btn} disabled={!!busy || !VAULT} onClick={solWithdraw}>Withdraw</button>
             </>
-          ) : wallets.length ? wallets.map((w) => (
-            <button key={w.name} style={btn} disabled={!!busy} onClick={() => connectSol(w)}>Connect {w.name}</button>
+          ) : wallets.length ? wallets.map((w, i) => (
+            <button key={`${w.name}-${i}`} style={btn} disabled={!!busy} onClick={() => connectSol(w)}>Connect {w.name}</button>
           )) : <p style={{ fontSize: 13 }}>No Solana wallet found. Install a wallet that supports Solana v1 transactions, such as Solflare.</p>}
           <p style={{ fontSize: 12, color: "#666" }}>Each call to the Rome contract asks your wallet twice: once to approve the readable authorization, once to sign the transaction.</p>
         </section>

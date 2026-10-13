@@ -61,15 +61,16 @@ console.log("EVM deposited →", w(evmDeposited));
 if (evmDeposited !== AMT) throw new Error("EVM deposit didn't hit the vault");
 await rome.evmWithdraw(provider, evm.address, vault, AMT);
 
-// ---- Solana lane (v1): fund → provision → grant → approve → deposit → withdraw → sweep ----
+// ---- Solana lane (v1): provision → approve → fund → grant → deposit → withdraw → sweep ----
+// The v1 calls come first, so a wallet that cannot sign them stops before any USDC moves.
 // Each v1 call is one Solana v1 transaction composed by the proxy; print how it went.
 const show = (step: string, r?: { route: string; signature?: string }, skipped = "already done") =>
   console.log(`  ${step}:`, r ? `${r.route}${r.signature ? ` ${r.signature}` : ""}` : skipped);
 console.log("\n== Solana lane (submitRomeTxV1) ==");
-await rome.solanaFund(cfg, wallet, 500_000n);      // 0.5 USDC → synthetic
 show("provision", await rome.solanaProvision(cfg, wallet), "already provisioned"); // one-time create_pda; the v1 lane does not do it for you
-show("wrapper grant", await rome.solanaGrant(cfg, wallet), "already enabled"); // one-time: lets the wrapper move the synthetic's wUSDC
 show("approve", await rome.solanaApprove(cfg, wallet, vault, AMT));
+await rome.solanaFund(cfg, wallet, 500_000n);      // 0.5 USDC → synthetic
+show("wrapper grant", await rome.solanaGrant(cfg, wallet), "already enabled"); // one-time: lets the wrapper move the synthetic's wUSDC
 show("deposit", await rome.solanaDeposit(cfg, wallet, vault, AMT));
 const synthDeposited = await rome.vaultBalanceOf(cfg, vault, synth);
 console.log("Solana deposited →", w(synthDeposited));
