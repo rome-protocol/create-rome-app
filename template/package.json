@@ -17,7 +17,7 @@
     "@rome-protocol/sdk": "github:rome-protocol/rome-sdk-ts#v0.3.0",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.0",
-    "@wallet-standard/app": "^1.1.1",
+    "@wallet-standard/app": "~1.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "viem": "^2.21.0"

@@ -10,7 +10,7 @@ interface IERC20 {
 /// deposit and withdraw the SAME ERC-20 token (the wUSDC wrapper) into the SAME
 /// state. On Rome a Solana user's balance is their wallet's SPL token account,
 /// surfaced 1:1 as this wrapper — so the vault is a plain ERC-20 vault; the SDK's
-/// two lanes (`submitRomeTx` and `submitRomeTxSolanaLane`) do the rest.
+/// two lanes (`submitRomeTx` and `submitRomeTxV1`) do the rest.
 contract Vault {
     IERC20 public immutable token; // the wUSDC wrapper
     mapping(address => uint256) public balanceOf;

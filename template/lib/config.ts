@@ -4,7 +4,7 @@ import type { Hex } from "viem";
 /** Everything the two lanes need — resolved from @rome-protocol/registry, no hardcoding. */
 export interface RomeConfig {
   chainId: number;
-  proxyUrl: string; // EVM JSON-RPC + rome_emulateCallAccounts
+  proxyUrl: string; // EVM JSON-RPC + the Solana-lane composer
   solanaRpc: string; // Solana RPC (the Solana lane submits + confirms here)
   solanaCluster: string; // the Solana cluster the chain settles on ("devnet", "mainnet", ...), as the registry names it
   programId: string; // rome-evm program id

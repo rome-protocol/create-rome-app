@@ -81,6 +81,13 @@ function laneV1Deps(cfg: RomeConfig, signer: SignerLike) {
   return { connection: new Connection(cfg.solanaRpc, "confirmed"), proxyUrl: cfg.proxyUrl, chainId: cfg.chainId, programId: cfg.programId, signer };
 }
 const payerOf = (w: SolanaWallet) => toLaneSigner(w.signer).payer;
+// A v1 call that lands on Solana can still revert in the EVM, or its receipt can
+// time out. Treat both as a failure so a flow never moves on past a step that did not work.
+async function landed<R extends { receipt: { status?: string } | null }>(step: string, call: Promise<R>): Promise<R> {
+  const r = await call;
+  if (r.receipt?.status !== "0x1") throw new Error(`${step} did not succeed: ${r.receipt ? "the call reverted" : "no receipt arrived in time"}.`);
+  return r;
+}
 /** Fund leg: move `amount` (6-dec) of USDC from the wallet into the synthetic's token account. */
 export function solanaFund(cfg: RomeConfig, wallet: SolanaWallet, amount: bigint) {
   const payer = payerOf(wallet);
@@ -94,16 +101,16 @@ export async function solanaProvision(cfg: RomeConfig, wallet: SolanaWallet) {
   const synthetic = syntheticAddress(payerOf(wallet));
   const deps = laneV1Deps(cfg, wallet.signer);
   if (await isSyntheticProvisioned(deps.connection, cfg.programId, synthetic)) return undefined;
-  return submitRomeTxV1(deps, buildCreatePdaCall(synthetic));
+  return landed("provision", submitRomeTxV1(deps, buildCreatePdaCall(synthetic)));
 }
 export function solanaApprove(cfg: RomeConfig, wallet: SolanaWallet, vault: Hex, amount: bigint) {
-  return submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: cfg.wusdc, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [vault, amount] }) });
+  return landed("approve", submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: cfg.wusdc, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [vault, amount] }) }));
 }
 export function solanaDeposit(cfg: RomeConfig, wallet: SolanaWallet, vault: Hex, amount: bigint) {
-  return submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: vault, data: encodeFunctionData({ abi: VAULT_ABI, functionName: "deposit", args: [amount] }) });
+  return landed("deposit", submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: vault, data: encodeFunctionData({ abi: VAULT_ABI, functionName: "deposit", args: [amount] }) }));
 }
 export function solanaWithdraw(cfg: RomeConfig, wallet: SolanaWallet, vault: Hex, amount: bigint) {
-  return submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: vault, data: encodeFunctionData({ abi: VAULT_ABI, functionName: "withdraw", args: [amount] }) });
+  return landed("withdraw", submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: vault, data: encodeFunctionData({ abi: VAULT_ABI, functionName: "withdraw", args: [amount] }) }));
 }
 /** Sweep leg: push `amount` (6-dec) of wUSDC from the synthetic back to the wallet, so it holds nothing at rest. */
 export async function solanaSweep(cfg: RomeConfig, wallet: SolanaWallet, amount: bigint) {
@@ -111,5 +118,5 @@ export async function solanaSweep(cfg: RomeConfig, wallet: SolanaWallet, amount:
   const connection = new Connection(cfg.solanaRpc, "confirmed");
   const sweep = buildSweepLeg({ programId: cfg.programId, mint: new PublicKey(cfg.usdcMint), amount, wallet: payer, synthetic: syntheticAddress(payer) });
   await submitSolanaInstructions([sweep.ensureWalletAtaIx], { connection, feePayer: payer, signTransaction: wallet.signTransaction });
-  return submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: sweep.helperTo, data: sweep.calldata });
+  return landed("sweep", submitRomeTxV1(laneV1Deps(cfg, wallet.signer), { to: sweep.helperTo, data: sweep.calldata }));
 }

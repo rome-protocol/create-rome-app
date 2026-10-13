@@ -98,7 +98,7 @@ export default function App() {
               <button style={btn} disabled={!!busy || !VAULT} onClick={solWithdraw}>Withdraw</button>
             </>
           ) : <button style={btn} onClick={connectPhantom}>Connect Phantom</button>}
-          <p style={{ fontSize: 12, color: "#666" }}>Each Solana-lane step asks Phantom twice: once to approve the readable authorization, once to sign the transaction.</p>
+          <p style={{ fontSize: 12, color: "#666" }}>Each call to the Rome contract asks Phantom twice: once to approve the readable authorization, once to sign the transaction.</p>
         </section>
       </div>
 
