@@ -20,7 +20,7 @@ Prefer one command? **`rome new my-app --chain hadrian`** (the [`rome` CLI](http
 
 A minimal app where both wallets deposit into + withdraw from the same `Vault`, sharing the same state:
 
-- **`lib/rome.ts`** — both lanes in one file (`submitRomeTx` for EVM, `submitRomeTxSolanaLane` for Solana)
+- **`lib/rome.ts`** — both lanes in one file (`submitRomeTx` for EVM, `submitRomeTxV1` for Solana: one Solana v1 transaction per call, no lookup table)
 - **`contracts/Vault.sol`** — a plain ERC-20 vault over the wUSDC wrapper
 - **`scripts/demo.ts`** — the funded proof that both lanes hit one Vault
 - **`src/App.tsx`** — connect MetaMask + Phantom, deposit/withdraw

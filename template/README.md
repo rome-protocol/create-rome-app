@@ -4,7 +4,8 @@ A minimal **dual-lane** app on [Rome](https://docs.rome.builders): one Solidity 
 
 ```
 contracts/Vault.sol      the app contract — a plain ERC-20 vault over wUSDC
-lib/rome.ts              BOTH lanes in one file (EVM via submitRomeTx, Solana via submitRomeTxSolanaLane)
+lib/rome.ts              BOTH lanes in one file (EVM via submitRomeTx, Solana via submitRomeTxV1)
+lib/phantomV1.ts         Phantom as a v1-lane signer (readable authorization + transaction)
 lib/config.ts            registry-driven config (chain, RPCs, wUSDC, program id) — no hardcoding
 scripts/demo.ts          headless: deploy a Vault + drive BOTH lanes → prove they hit one Vault
 scripts/deploy.ts        deploy the Vault
@@ -46,7 +47,7 @@ npm run dev      # the web app — connect MetaMask + Phantom, deposit/withdraw
 ## The two lanes (see `lib/rome.ts`)
 
 - **EVM lane** — `submitRomeTx(provider, tx)`. The SDK sizes gas (Rome's estimator undercounts Solana-CPI cost) and supplies fee fields. A MetaMask user wraps 0.15 of native gas into wUSDC (`evmWrapToWusdc`), then it's a normal ERC-20 `approve` → `deposit`.
-- **Solana lane** — `submitRomeTxSolanaLane(deps, call)`, the mirror, with **no Ethereum key**. A Solana user's EVM identity is their *synthetic address*; their spendable balance is their wallet's token account surfaced as wUSDC. Value flows *through* the synthetic: **fund leg** in, **sweep leg** out; a fresh synthetic is **auto-provisioned** on first use.
+- **Solana lane** — `submitRomeTxV1(deps, call)`, the mirror, with **no Ethereum key**. Each call is **one Solana v1 transaction** composed by the proxy, with no lookup table and no account list to build. A Solana user's EVM identity is their *synthetic address*; their spendable balance is their wallet's token account surfaced as wUSDC. Value flows *through* the synthetic: **fund leg** in, **sweep leg** out. The wallet is asked **twice per call**: first to approve a readable authorization message, then to sign the transaction. A fresh synthetic is **provisioned explicitly, once** (`solanaProvision`) before its first approve; the v1 lane does not do it for you.
 
 Both call the identical `Vault` and share the same `balanceOf` state. Point the constructor at any chain's wUSDC (from the registry) to run elsewhere.
 

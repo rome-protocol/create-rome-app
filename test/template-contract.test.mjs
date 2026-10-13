@@ -67,3 +67,12 @@ test("`npm run verify` runs the works-gate from the scaffold", () => {
   assert.match(verify, /rome-protocol\/rome-cli/, "verify.ts must invoke the rome CLI (same gate, not a reimplementation)");
   assert.match(verify, /dotenv\/config/, "verify.ts must load .env so the CLI sees the keys");
 });
+
+test("the Solana lane is the v1 lane (submitRomeTxV1), with explicit provisioning", () => {
+  const rome = read("lib", "rome.ts");
+  assert.match(rome, /submitRomeTxV1/, "lib/rome.ts must send Solana-lane calls through submitRomeTxV1");
+  assert.ok(!/submitRomeTxSolanaLane|extraAccounts/.test(rome), "lib/rome.ts must not use the legacy lane or pass extraAccounts");
+  assert.match(rome, /export (async )?function solanaProvision/, "lib/rome.ts must expose the one-time provisioning step");
+  assert.match(read("src", "App.tsx"), /solanaProvision/, "the app must provision a fresh synthetic before its first approve");
+  assert.match(read("scripts", "demo.ts"), /submitRomeTxV1/, "demo.ts must name the v1 lane");
+});
