@@ -1,3 +1,4 @@
+import "./polyfills"; // must stay first: sets globalThis.Buffer before the Solana libraries load
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";

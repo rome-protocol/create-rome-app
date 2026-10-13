@@ -28,7 +28,8 @@ export function listSolanaWallets(cluster: string, onChange: (wallets: Wallet[])
 }
 
 export async function connectSolanaWallet(wallet: Wallet): Promise<Account> {
-  const [account] = await (wallet.features as any)["standard:connect"].connect();
+  const { accounts } = await (wallet.features as any)["standard:connect"].connect();
+  const [account] = accounts ?? [];
   if (!account) throw new Error(`${wallet.name} returned no account. Unlock it and try again.`);
   return account;
 }

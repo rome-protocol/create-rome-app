@@ -109,3 +109,17 @@ test("the Solana lane is wallet-agnostic: Wallet Standard, no Phantom-only code"
     assert.ok(!/phantomV1/.test(src), `${f} must not reference phantomV1`);
   }
 });
+
+test("the web app loads in a browser: Buffer is polyfilled before any Solana library", () => {
+  const main = read("src", "main.tsx");
+  const firstImport = main.split("\n").find((l) => l.startsWith("import "));
+  assert.match(firstImport ?? "", /^import "\.\/polyfills";/, "src/main.tsx must import ./polyfills before anything else (spl-token reads globalThis.Buffer on load)");
+  assert.match(read("src", "polyfills.ts"), /from "buffer"/, "the polyfill must come from the buffer package");
+  const pkg = JSON.parse(read("package.json"));
+  assert.ok(pkg.dependencies?.buffer, "buffer must be a direct dependency");
+});
+
+test("connecting a Solana wallet reads the accounts list Wallet Standard returns", () => {
+  const src = read("lib", "solanaWallet.ts");
+  assert.match(src, /const \{ accounts \} = await .*\["standard:connect"\]\.connect\(\)/, "standard:connect resolves to { accounts }, not an array");
+});
