@@ -8,7 +8,7 @@ Scaffold a **dual-lane Rome app** in seconds — one Solidity contract that both
 npx github:rome-protocol/create-rome-app my-app
 cd my-app
 npm install
-# fill in .env (EVM_KEY + SOLANA_KEY), fund both wallets — gas is USDC, bridge it in
+# fill in .env (ROME_EVM_KEY + ROME_SOLANA_KEY), fund both wallets — gas is USDC, bridge it in
 npm run demo      # headless: a MetaMask lane AND a Solana lane each hit ONE Vault
 npm run deploy    # deploy your own Vault → set VAULT_ADDRESS in .env
 npm run dev       # the web app — connect both wallets, deposit/withdraw
